@@ -146,8 +146,10 @@ fun VideoGallery(
             val locale = TranscodeFormat.currentLocale(context)
             val today = stringResource(R.string.date_today)
             val yesterday = stringResource(R.string.date_yesterday)
+            val epochDay = System.currentTimeMillis() / 86_400_000L
             // Секции кэшируем, чтобы группировка сотен файлов не крутилась на каждом кадре скролла.
-            val sections = remember(loaded, denseGrid, today, yesterday, locale) {
+            // epochDay инвалидирует кэш при переходе через полночь.
+            val sections = remember(loaded, denseGrid, today, yesterday, locale, epochDay) {
                 if (denseGrid || loaded.isEmpty()) emptyList() else buildDateSections(loaded, today, yesterday, locale)
             }
             // Порядок элементов ровно такой, как в сетке, заголовками дат

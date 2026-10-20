@@ -129,11 +129,11 @@ object EncoderCatalog {
         return mime in deviceEncoders
     }
 
-    /** Цепочка fallback: HW H.264 → HW HEVC → HW AV1 → x264 → MPEG-4 (есть всегда). */
-    fun effective(wanted: TranscodeEngine): TranscodeEngine {
+    /** Цепочка fallback: HW H.264 → HW HEVC → HW AV1 → x264 → MPEG-4. Возвращает null, если нет доступных кодеков. */
+    fun effective(wanted: TranscodeEngine): TranscodeEngine? {
         val have = _state.value.names
         if (have.isEmpty() || available(wanted)) return wanted
-        return FALLBACK_CHAIN.firstOrNull { available(it) } ?: TranscodeEngine.SW_MPEG4
+        return FALLBACK_CHAIN.firstOrNull { available(it) }
     }
 
     private val FALLBACK_CHAIN = listOf(

@@ -53,4 +53,14 @@ class EncoderCatalogTest {
         assertEquals(TranscodeEngine.SW_MPEG4, EncoderCatalog.effective(TranscodeEngine.HW_H264))
         assertEquals(TranscodeEngine.SW_MPEG4, EncoderCatalog.effective(TranscodeEngine.SW_X264))
     }
+
+    @Test
+    fun `effective возвращает null если доступных видеокодеков нет`() {
+        // В сборке только аудиокодеки
+        EncoderCatalog.publish(setOf("aac", "mp3"))
+
+        org.junit.Assert.assertNull(EncoderCatalog.effective(TranscodeEngine.HW_H264))
+        org.junit.Assert.assertNull(EncoderCatalog.effective(TranscodeEngine.SW_X264))
+        org.junit.Assert.assertNull(EncoderCatalog.effective(TranscodeEngine.SW_MPEG4))
+    }
 }

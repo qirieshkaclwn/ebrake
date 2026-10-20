@@ -116,7 +116,7 @@ object OutputTarget {
                 if (cursor.moveToFirst()) cursor.getString(0) else null
             }
         }.getOrNull()
-        return name ?: tree.toString()
+        return name ?: ""
     }
 
     /**
@@ -177,7 +177,7 @@ object OutputTarget {
         // не открываются в executeAsync (см. ловушку в NOTES.md).
         val safUrl = FFmpegKitConfig.getSafParameterForWrite(context, doc, true)
         val folder = label(context)
-        val display = if (folder.isNotEmpty()) "$folder/$fileName" else fileName
+        val display = if (folder.isNotEmpty() && !folder.startsWith("content:")) "$folder/$fileName" else fileName
         return Target.Saf(doc, safUrl, display)
     }
 

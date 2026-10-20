@@ -125,6 +125,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     // Движок перекодирования: локальный AAR из prebuilt/bundle-android-aar-24-maven
     // (собран через ./nix-android.sh -p android-r27d, см. docs/FFMPEG_KIT_NEXT.md).

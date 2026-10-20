@@ -255,10 +255,27 @@ object VideoLibrary {
                 null
             } ?: retriever.getFrameAtTime(atUs, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
                 ?: retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-            frame
+            frame?.let { scaleDown(it, widthPx) }
         } finally {
             runCatching { retriever.release() }
         }
+    }
+
+    private fun scaleDown(src: Bitmap, maxDim: Int): Bitmap {
+        val w = src.width
+        val h = src.height
+        if (w <= 0 || h <= 0 || (w <= maxDim && h <= maxDim)) return src
+        val aspect = w.toFloat() / h.toFloat()
+        val (targetW, targetH) = if (w >= h) {
+            maxDim to (maxDim / aspect).toInt().coerceAtLeast(1)
+        } else {
+            (maxDim * aspect).toInt().coerceAtLeast(1) to maxDim
+        }
+        val scaled = Bitmap.createScaledBitmap(src, targetW, targetH, true)
+        if (scaled !== src) {
+            src.recycle()
+        }
+        return scaled
     }
 }
 

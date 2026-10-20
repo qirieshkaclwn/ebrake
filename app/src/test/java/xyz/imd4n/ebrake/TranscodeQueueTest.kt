@@ -4,6 +4,7 @@ import android.net.Uri
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -73,6 +74,24 @@ class TranscodeQueueTest {
         val nextJob = TranscodeQueue.next()
         assertNotNull(nextJob)
         assertEquals(101L, nextJob?.id)
+    }
+
+    @Test
+    fun `claimNext атомарно переводит задание в RUNNING и защищает от удаления`() {
+        val job = createJob(id = 105, status = JobStatus.QUEUED)
+        TranscodeQueue.add(job)
+
+        val claimed = TranscodeQueue.claimNext()
+        assertNotNull(claimed)
+        assertEquals(105L, claimed?.id)
+        assertEquals(JobStatus.RUNNING, claimed?.status)
+
+        // Теперь задание находится в RUNNING, и remove не должен его удалять
+        assertFalse(TranscodeQueue.remove(105L))
+        assertTrue(TranscodeQueue.queue.value.any { it.id == 105L })
+
+        // Повторный claimNext не возвращает его повторно
+        assertNull(TranscodeQueue.claimNext())
     }
 
     @Test

@@ -245,6 +245,7 @@ class TranscodeViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch(Dispatchers.IO) {
             val currentUris = _ui.value.selection.map { it.uri }.toSet()
             val newItems = items
+                .distinctBy { it.first }
                 .filterNot { (uri, _) -> uri in currentUris }
                 .map { (uri, name) ->
                     val size = VideoLibrary.size(getApplication(), uri)
@@ -480,6 +481,17 @@ class TranscodeViewModel(app: Application) : AndroidViewModel(app) {
             EncoderCatalog.ensureDetected(getApplication())
             val wanted = state.preset.engine
             val engine = EncoderCatalog.effective(wanted)
+            if (engine == null) {
+                appendLog(
+                    str(
+                        R.string.log_engine_missing,
+                        wanted.ffmpegVideoCodec,
+                        "none",
+                    ),
+                )
+                _ui.update { it.copy(compareRunning = false) }
+                return@launch
+            }
             if (engine != wanted) {
                 appendLog(
                     str(

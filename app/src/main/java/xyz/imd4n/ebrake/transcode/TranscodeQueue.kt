@@ -67,6 +67,28 @@ object TranscodeQueue {
     /** Следующее задание к обработке (первое в статусе «В очереди»). */
     fun next(): TranscodeJob? = _queue.value.firstOrNull { it.status == JobStatus.QUEUED }
 
+    /**
+     * Атомарно извлекает следующее задание и переводит его в статус [JobStatus.RUNNING].
+     * Защищает от состояния гонки с UI, отменяющим задание через [remove].
+     */
+    fun claimNext(): TranscodeJob? {
+        var claimed: TranscodeJob? = null
+        _queue.update { list ->
+            var found = false
+            list.map { job ->
+                if (!found && job.status == JobStatus.QUEUED) {
+                    found = true
+                    val active = job.copy(status = JobStatus.RUNNING)
+                    claimed = active
+                    active
+                } else {
+                    job
+                }
+            }
+        }
+        return claimed
+    }
+
     fun hasQueued(): Boolean = next() != null
 
     /** Чистит только завершённые: «В очереди» и «Кодируется» остаются. */

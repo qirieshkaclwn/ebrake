@@ -87,9 +87,7 @@ class TranscodeService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
-        if (cancelRequested || inForeground) {
-            runCatching { FFmpegKit.cancel() }
-        }
+        runCatching { FFmpegKit.cancel() }
         scope.cancel()
         super.onDestroy()
     }
@@ -105,7 +103,7 @@ class TranscodeService : Service() {
             try {
                 EncoderCatalog.ensureDetected(this@TranscodeService)
                 while (!cancelRequested) {
-                    val job = TranscodeQueue.next() ?: break
+                    val job = TranscodeQueue.claimNext() ?: break
                     // false = очередь отменили, дальше не идём
                     if (!runOneJob(job)) break
                     processed++
@@ -136,6 +134,17 @@ class TranscodeService : Service() {
      */
     private fun runOneJob(job: TranscodeJob): Boolean {
         val engine = EncoderCatalog.effective(job.preset.engine)
+        if (engine == null) {
+            TranscodeQueue.appendLog(
+                getString(
+                    R.string.log_engine_missing,
+                    job.preset.engine.ffmpegVideoCodec,
+                    "none",
+                ),
+            )
+            TranscodeQueue.update(job.id) { it.copy(status = JobStatus.FAILED) }
+            return true
+        }
         if (engine != job.preset.engine) {
             TranscodeQueue.appendLog(
                 getString(
