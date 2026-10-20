@@ -394,7 +394,7 @@ object TranscodeFormat {
         if (decimals == 0) {
             String.format(locale, "%.0f", value)
         } else {
-            String.format(locale, "%\u002e1f", value)
+            String.format(locale, "%.1f", value)
         }
 
     /**
@@ -419,14 +419,19 @@ object TranscodeFormat {
         if (raw.isNullOrBlank()) return null
         val parts = raw.split("/")
         val num = parts.getOrNull(0)?.toDoubleOrNull() ?: return null
-        val den = parts.getOrNull(1)?.toDoubleOrNull()?.takeIf { it != 0.0 } ?: 1.0
+        val den = if (parts.size > 1) {
+            val d = parts[1].toDoubleOrNull() ?: return null
+            if (d == 0.0) 1.0 else d
+        } else {
+            1.0
+        }
         return num / den
     }
 
     /** Размер с единицей: [context] — источник перевода «МБ»/«MB». */
     fun formatBytes(context: Context, bytes: Long, locale: Locale = currentLocale(context)): String {
         val (value, unit) = sizeParts(bytes)
-        val decimals = if (unit == SizeUnit.KILOBYTES) 0 else if (unit == SizeUnit.BYTES) 0 else 1
+        val decimals = if (unit == SizeUnit.BYTES || unit == SizeUnit.KILOBYTES) 0 else 1
         return context.getString(unit.labelRes, number(value, locale, decimals))
     }
 
@@ -447,7 +452,7 @@ object TranscodeFormat {
         return context.getString(
             R.string.delta_signed,
             sign,
-            formatBytes(context, if (bytes < 0) -bytes else bytes, locale),
+            formatBytes(context, kotlin.math.abs(bytes), locale),
         )
     }
 

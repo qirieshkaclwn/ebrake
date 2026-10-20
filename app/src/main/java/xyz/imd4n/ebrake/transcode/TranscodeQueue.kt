@@ -48,6 +48,22 @@ object TranscodeQueue {
         _queue.update { list -> list.map { if (it.id == id) fn(it) else it } }
     }
 
+    /** Удаляет неначатое задание из очереди. */
+    fun remove(id: Long): Boolean {
+        var removed = false
+        _queue.update { list ->
+            list.filterNot {
+                if (it.id == id && it.status == JobStatus.QUEUED) {
+                    removed = true
+                    true
+                } else {
+                    false
+                }
+            }
+        }
+        return removed
+    }
+
     /** Следующее задание к обработке (первое в статусе «В очереди»). */
     fun next(): TranscodeJob? = _queue.value.firstOrNull { it.status == JobStatus.QUEUED }
 

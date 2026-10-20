@@ -27,6 +27,7 @@
     <string name="action_clear_selection">Clear selection</string>
     <string name="action_compare_this">Compare this clip</string>
     <string name="action_inspect">Technical details</string>
+    <string name="action_remove">Remove</string>
 
     <string name="input_source">Source: %1$s</string>
     <string name="input_compare">Comparing: %1$s</string>

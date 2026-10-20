@@ -113,7 +113,14 @@ object EncoderCatalog {
         val s = _state.value
         if (!s.detected) return true
         // Проба важнее списков: именно она ловит «заявлен, но не открывается».
-        _verified.value?.let { return engine in it || deviceMime(engine) == null }
+        _verified.value?.let { verifiedHw ->
+            val mime = deviceMime(engine)
+            return if (mime != null) {
+                engine in verifiedHw
+            } else {
+                engine.ffmpegVideoCodec in s.names
+            }
+        }
         if (engine.ffmpegVideoCodec !in s.names) return false
         // Список пустой = прочитать не удалось (старый API, обрезанные права).
         // Тогда доверяем сборке: иначе посыпались бы все HW разом.
@@ -126,14 +133,16 @@ object EncoderCatalog {
     fun effective(wanted: TranscodeEngine): TranscodeEngine {
         val have = _state.value.names
         if (have.isEmpty() || available(wanted)) return wanted
-        return listOf(
-            TranscodeEngine.HW_H264,
-            TranscodeEngine.HW_HEVC,
-            TranscodeEngine.HW_AV1,
-            TranscodeEngine.SW_X264,
-            TranscodeEngine.SW_MPEG4,
-        ).firstOrNull { available(it) } ?: TranscodeEngine.SW_MPEG4
+        return FALLBACK_CHAIN.firstOrNull { available(it) } ?: TranscodeEngine.SW_MPEG4
     }
+
+    private val FALLBACK_CHAIN = listOf(
+        TranscodeEngine.HW_H264,
+        TranscodeEngine.HW_HEVC,
+        TranscodeEngine.HW_AV1,
+        TranscodeEngine.SW_X264,
+        TranscodeEngine.SW_MPEG4,
+    )
 
     private fun deviceMime(engine: TranscodeEngine): String? = when (engine) {
         TranscodeEngine.HW_H264 -> "video/avc"

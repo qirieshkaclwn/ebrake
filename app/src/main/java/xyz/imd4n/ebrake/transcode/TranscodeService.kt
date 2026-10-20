@@ -87,6 +87,9 @@ class TranscodeService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        if (cancelRequested || inForeground) {
+            runCatching { FFmpegKit.cancel() }
+        }
         scope.cancel()
         super.onDestroy()
     }

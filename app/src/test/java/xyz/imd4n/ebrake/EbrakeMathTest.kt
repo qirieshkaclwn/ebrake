@@ -8,6 +8,7 @@ import xyz.imd4n.ebrake.transcode.FfmpegCommands
 import xyz.imd4n.ebrake.transcode.Savings
 import xyz.imd4n.ebrake.transcode.TranscodeEngine
 import xyz.imd4n.ebrake.transcode.TranscodeFormat
+import xyz.imd4n.ebrake.ui.gallery.formatDuration
 import java.util.Locale
 
 /**
@@ -187,5 +188,52 @@ class EbrakeMathTest {
         // Разброс не уходит в ноль и не улетает: три одинаковых кодирования бессмысленны.
         assertEquals(0.2f, FfmpegCommands.dragSpread(TranscodeEngine.HW_H264, CompareLevel.ECO, 1f, 100f), 0.001f)
         assertEquals(2.5f, FfmpegCommands.dragSpread(TranscodeEngine.HW_H264, CompareLevel.HIGH, 1f, 100f), 0.001f)
+    }
+
+    @Test
+    fun `таймкод форматируется правильно для коротких и длинных роликов`() {
+        assertEquals("0:45", formatDuration(45_000L, en))
+        assertEquals("3:25", formatDuration(205_000L, en))
+        assertEquals("1:05:02", formatDuration(3902_000L, en))
+    }
+
+    @Test
+    fun `formatSec работает корректно`() {
+        assertEquals("0:00", TranscodeFormat.formatSec(0.0, en))
+        assertEquals("1:40", TranscodeFormat.formatSec(100.0, en))
+    }
+
+    @Test
+    fun `fixed форматирует с нужным числом знаков`() {
+        assertEquals("12,345", TranscodeFormat.fixed(12.3454, ru, 3))
+        assertEquals("12.345", TranscodeFormat.fixed(12.3454, en, 3))
+    }
+
+    @Test
+    fun `fpsOrNull парсит строковые значения fps ffprobe`() {
+        assertEquals(30.0, TranscodeFormat.fpsOrNull("30") ?: 0.0, 0.001)
+        assertEquals(24.0, TranscodeFormat.fpsOrNull("24/1") ?: 0.0, 0.001)
+        assertEquals(29.97, TranscodeFormat.fpsOrNull("30000/1001") ?: 0.0, 0.01)
+        assertEquals(59.94, TranscodeFormat.fpsOrNull("60000/1001") ?: 0.0, 0.01)
+        // Деление на ноль защищено
+        assertEquals(30.0, TranscodeFormat.fpsOrNull("30/0") ?: 0.0, 0.001)
+
+        // Невалидный ввод
+        org.junit.Assert.assertNull(TranscodeFormat.fpsOrNull(null))
+        org.junit.Assert.assertNull(TranscodeFormat.fpsOrNull(""))
+        org.junit.Assert.assertNull(TranscodeFormat.fpsOrNull("   "))
+        org.junit.Assert.assertNull(TranscodeFormat.fpsOrNull("abc"))
+        org.junit.Assert.assertNull(TranscodeFormat.fpsOrNull("30/xyz"))
+    }
+
+    @Test
+    fun `mbpsOrNull переводит bps в Мбит в секунду`() {
+        assertEquals(5.0, TranscodeFormat.mbpsOrNull("5000000") ?: 0.0, 0.0001)
+        assertEquals(0.128, TranscodeFormat.mbpsOrNull("128000") ?: 0.0, 0.0001)
+        assertEquals(0.0, TranscodeFormat.mbpsOrNull("0") ?: -1.0, 0.0001)
+
+        org.junit.Assert.assertNull(TranscodeFormat.mbpsOrNull(null))
+        org.junit.Assert.assertNull(TranscodeFormat.mbpsOrNull(""))
+        org.junit.Assert.assertNull(TranscodeFormat.mbpsOrNull("invalid"))
     }
 }

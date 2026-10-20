@@ -1,10 +1,7 @@
 package xyz.imd4n.ebrake.ui
 
-import android.content.Context
 import android.graphics.Bitmap
-import android.media.MediaMetadataRetriever
 import android.net.Uri
-import androidx.collection.LruCache
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -28,19 +25,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import xyz.imd4n.ebrake.ui.gallery.VideoLibrary
 
 /**
- * Кадр-обложка ролика для карточек очереди: в списке одного файла, взятого в трёх
- * уровнях качества, ориентироваться можно только глазами.
+ * Кадр-обложка ролика для карточек очереди и истории: в списке одного файла,
+ * взятого в трёх уровнях качества, ориентироваться можно глазами.
  *
- * Кадр берёт MediaMetadataRetriever (декодирует один кадр, а не файл целиком) на
- * IO-потоке, результат кэшируется в памяти по «uri@высота в px» — при прокрутке
- * списка туда-обратно картинки не передекодируются.
+ * Переиспользует общий [VideoLibrary.cover]: единый LRU-кэш на 12 МБ,
+ * аппаратное декодирование через ContentResolver на Android 10+, масштабированное
+ * чтение кадра без OOM на 4K-роликах и кэширование неудачных попыток.
  */
-private val thumbs = LruCache<String, Bitmap>(24)
-
 @Composable
 fun VideoThumbnail(
     uri: Uri?,
@@ -49,14 +43,13 @@ fun VideoThumbnail(
     aspect: Float = 16f / 9f,
 ) {
     val context = LocalContext.current
-    // Высота = производная от ширины, поэтому и декодируем ровно под неё:
-    // на 3x экране 96.dp — это 288 px по высоте, а не мыло из 128 px.
+    val widthPx = with(LocalDensity.current) { width.roundToPx() }
     val heightPx = with(LocalDensity.current) { (width / aspect).roundToPx() }
-    val key = uri?.let { "${it}@$heightPx" }
-    val bitmap by produceState<Bitmap?>(initialValue = null, key) {
-        // key выведен из uri, поэтому non-null ключ = non-null uri.
+    val targetPx = maxOf(widthPx, heightPx).coerceAtLeast(1)
+
+    val bitmap by produceState<Bitmap?>(initialValue = null, uri, targetPx) {
         value = if (uri != null) {
-            withContext(Dispatchers.IO) { loadThumbnail(context, uri, key!!, heightPx) }
+            VideoLibrary.cover(context, uri, targetPx)
         } else {
             null
         }
@@ -79,7 +72,6 @@ fun VideoThumbnail(
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
-            // Пока декодируется (и если не декодируется вовсе) — заглушка.
             Icon(
                 imageVector = Icons.Filled.Movie,
                 contentDescription = null,
@@ -87,37 +79,4 @@ fun VideoThumbnail(
             )
         }
     }
-}
-
-private fun loadThumbnail(
-    context: Context,
-    uri: Uri,
-    key: String,
-    heightPx: Int,
-): Bitmap? {
-    thumbs.get(key)?.let { return it }
-    val frame = runCatching {
-        val retriever = MediaMetadataRetriever()
-        try {
-            // content:// из пикера: открывается по persistable permission.
-            retriever.setDataSource(context, uri)
-            // Кадр из третьти ролика: в начале часто чёрная заставка/логотип.
-            val durMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-                ?.toLongOrNull() ?: 0L
-            val at = durMs * 1000 / 3
-            val frame = retriever.getFrameAtTime(at, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                ?: retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-            frame?.let { scaleToHeight(it, heightPx) }
-        } finally {
-            runCatching { retriever.release() }
-        }
-    }.getOrNull()
-    if (frame != null) thumbs.put(key, frame)
-    return frame
-}
-
-private fun scaleToHeight(src: Bitmap, heightPx: Int): Bitmap? {
-    if (src.height <= 0 || src.width <= 0) return null
-    val w = (src.width * heightPx / src.height).coerceAtLeast(1)
-    return Bitmap.createScaledBitmap(src, w, heightPx.coerceAtLeast(1), true)
 }

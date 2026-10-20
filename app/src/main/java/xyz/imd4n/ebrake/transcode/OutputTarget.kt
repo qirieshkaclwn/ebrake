@@ -176,7 +176,9 @@ object OutputTarget {
         // Reusable — тот же SAF-фикс, что и на чтении входа: одноразовые URL
         // не открываются в executeAsync (см. ловушку в NOTES.md).
         val safUrl = FFmpegKitConfig.getSafParameterForWrite(context, doc, true)
-        return Target.Saf(doc, safUrl, doc.toString())
+        val folder = label(context)
+        val display = if (folder.isNotEmpty()) "$folder/$fileName" else fileName
+        return Target.Saf(doc, safUrl, display)
     }
 
     /**

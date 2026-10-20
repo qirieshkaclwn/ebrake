@@ -238,16 +238,27 @@ class TranscodeViewModel(app: Application) : AndroidViewModel(app) {
     /**
      * Файлы из ручного пикера. Размер каждого доказывается отдельным запросом:
      * из галереи тут нечего взять, а карточке отбора нужна сумма.
+     * Обновление состояния батчится один раз для всего списка.
      */
     fun addToSelection(items: List<Pair<Uri, String>>) {
         if (items.isEmpty()) return
         viewModelScope.launch(Dispatchers.IO) {
-            items.forEach { (uri, name) ->
-                if (_ui.value.selection.any { it.uri == uri }) return@forEach
-                val size = VideoLibrary.size(getApplication(), uri)
-                _ui.update { it.copy(selection = it.selection + SelectedInput(uri, name, size)) }
+            val currentUris = _ui.value.selection.map { it.uri }.toSet()
+            val newItems = items
+                .filterNot { (uri, _) -> uri in currentUris }
+                .map { (uri, name) ->
+                    val size = VideoLibrary.size(getApplication(), uri)
+                    SelectedInput(uri, name, size)
+                }
+            if (newItems.isNotEmpty()) {
+                _ui.update { it.copy(selection = it.selection + newItems) }
             }
         }
+    }
+
+    /** Удаление одного задания из очереди. */
+    fun removeJob(id: Long) {
+        TranscodeQueue.remove(id)
     }
 
     /** Сброс отметок. Вход сравнения не трогаем — он выбран на «Правке». */
@@ -289,21 +300,8 @@ class TranscodeViewModel(app: Application) : AndroidViewModel(app) {
                         lastLogLines(ctx, session.getOutput(), 5)
                 } else {
                     val locale = TranscodeFormat.currentLocale(ctx)
-                    buildString {
-                        append(str(R.string.meta_format, info.getFormat(), info.getLongFormat()))
-                        append("\n")
-                        append(
-                            str(
-                                R.string.meta_duration,
-                                formatSec(info.getDuration()?.toDoubleOrNull() ?: 0.0, TranscodeFormat.currentLocale(ctx)),
-                                formatBytes(ctx, info.getSize()?.toLongOrNull() ?: 0L),
-                            ),
-                        )
-                        append("\n")
-                        append(str(R.string.meta_bitrate, prettyBitrate(info.getBitrate(), locale)))
-                        append("\n")
-                        append(prettyStreams(info, locale))
-                    }
+                    val dur = info.getDuration()?.toDoubleOrNull() ?: 0.0
+                    formatMediaSummary(info, dur, ctx, locale)
                 }
             }.getOrElse { e -> str(R.string.meta_read_error, e.javaClass.name + ": " + e.message) }
             _ui.update { it.copy(inspectInfo = text, inspectLoading = false) }
@@ -368,31 +366,10 @@ class TranscodeViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 val dur = info.getDuration()?.toDoubleOrNull() ?: 0.0
                 val locale = TranscodeFormat.currentLocale(ctx)
-                val streams = prettyStreams(info, locale)
                 _ui.update {
                     it.copy(
                         durationSec = dur,
-                        mediaInfo = buildString {
-                            append(
-                                str(
-                                    R.string.meta_format,
-                                    info.getFormat(),
-                                    info.getLongFormat(),
-                                ),
-                            )
-                            append("\n")
-                            append(
-                                str(
-                                    R.string.meta_duration,
-                                    formatSec(dur, locale),
-                                    formatBytes(ctx, info.getSize()?.toLongOrNull() ?: 0),
-                                ),
-                            )
-                            append("\n")
-                            append(str(R.string.meta_bitrate, prettyBitrate(info.getBitrate(), locale)))
-                            append("\n")
-                            append(streams)
-                        },
+                        mediaInfo = formatMediaSummary(info, dur, ctx, locale),
                     )
                 }
                 appendLog(
@@ -731,6 +708,28 @@ class TranscodeViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun engineAvailable(engine: TranscodeEngine): Boolean = EncoderCatalog.available(engine)
+
+    /** Форматирует сводку ffprobe по контейнеру, битрейту, длительности и дорожкам. */
+    private fun formatMediaSummary(
+        info: com.arthenica.ffmpegkit.MediaInformation,
+        durationSec: Double,
+        ctx: Application,
+        locale: java.util.Locale,
+    ): String = buildString {
+        append(str(R.string.meta_format, info.getFormat(), info.getLongFormat()))
+        append("\n")
+        append(
+            str(
+                R.string.meta_duration,
+                formatSec(durationSec, locale),
+                formatBytes(ctx, info.getSize()?.toLongOrNull() ?: 0L),
+            ),
+        )
+        append("\n")
+        append(str(R.string.meta_bitrate, prettyBitrate(info.getBitrate(), locale)))
+        append("\n")
+        append(prettyStreams(info, locale))
+    }
 
     /** Битрейт в Мбит/с с сотыми; неизвестно — «?», единицу дописывает строка ресурсов. */
     private fun prettyBitrate(raw: String?, locale: java.util.Locale): String =

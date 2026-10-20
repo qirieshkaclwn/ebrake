@@ -31,6 +31,7 @@
     <string name="action_clear_selection">Сбросить отметки</string>
     <string name="action_compare_this">Сравнить этот ролик</string>
     <string name="action_inspect">Технические подробности</string>
+    <string name="action_remove">Удалить</string>
 
     <!-- ══════════════ Ввод ══════════════ -->
     <string name="input_source">Источник: %1$s</string>

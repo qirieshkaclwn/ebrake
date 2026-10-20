@@ -143,9 +143,13 @@ fun VideoGallery(
         )
 
         else -> {
-            // Секции считаем до сетки: её content-лямбда не @Composable, и
-            // stringResource внутри неё не вызвать.
-            val sections = if (denseGrid) emptyList() else dateSections(loaded)
+            val locale = TranscodeFormat.currentLocale(context)
+            val today = stringResource(R.string.date_today)
+            val yesterday = stringResource(R.string.date_yesterday)
+            // Секции кэшируем, чтобы группировка сотен файлов не крутилась на каждом кадре скролла.
+            val sections = remember(loaded, denseGrid, today, yesterday, locale) {
+                if (denseGrid || loaded.isEmpty()) emptyList() else buildDateSections(loaded, today, yesterday, locale)
+            }
             // Порядок элементов ровно такой, как в сетке, заголовками дат
             // включительно (они помечены null). Нужен предзагрузке, чтобы
             // «две строки вперёд» считались по индексам сетки, а не по
@@ -395,41 +399,52 @@ private fun GalleryMessage(
 }
 
 /** Ролики, сгруппированные по дням: сегодня / вчера / дата. */
-@Composable
-private fun dateSections(items: List<VideoItem>): List<Pair<String, List<VideoItem>>> {
+internal fun <T> buildDateSections(
+    items: List<T>,
+    today: String,
+    yesterday: String,
+    locale: Locale,
+    dateAddedSec: (T) -> Long,
+): List<Pair<String, List<T>>> {
     val calendar = Calendar.getInstance()
+    val thisYear = calendar.get(Calendar.YEAR)
     calendar.set(Calendar.HOUR_OF_DAY, 0)
     calendar.set(Calendar.MINUTE, 0)
     calendar.set(Calendar.SECOND, 0)
     calendar.set(Calendar.MILLISECOND, 0)
     val midnightToday = calendar.timeInMillis / 1000
     val midnightYesterday = midnightToday - 86_400L
-    // Локаль приложения, а не устройства: на 13+ язык выбирается отдельно в
-    // настройках, и иначе заголовки дат остались бы на системном языке.
-    val locale = TranscodeFormat.currentLocale(LocalContext.current)
+
     val dayFormat = SimpleDateFormat("d MMMM", locale)
     val dateFormat = SimpleDateFormat("d MMMM yyyy", locale)
-    val thisYear = Calendar.getInstance().get(Calendar.YEAR)
-    val today = stringResource(R.string.date_today)
-    val yesterday = stringResource(R.string.date_yesterday)
+    val itemCal = Calendar.getInstance()
 
     return items
-        .groupBy { video ->
-            val added = video.dateAddedSec
+        .groupBy { item ->
+            val added = dateAddedSec(item)
             when {
                 added >= midnightToday -> today
                 added >= midnightYesterday -> yesterday
                 else -> {
                     val date = Date(added * 1000)
-                    val year = Calendar.getInstance().apply { time = date }.get(Calendar.YEAR)
+                    itemCal.time = date
+                    val year = itemCal.get(Calendar.YEAR)
                     if (year == thisYear) dayFormat.format(date) else dateFormat.format(date)
                 }
             }
         }
         // Порядок групп задаёт самый свежий ролик в них.
         .toList()
-        .sortedByDescending { (_, videos) -> videos.maxOf { it.dateAddedSec } }
+        .sortedByDescending { (_, groupItems) -> groupItems.maxOf { dateAddedSec(it) } }
 }
+
+internal fun buildDateSections(
+    items: List<VideoItem>,
+    today: String,
+    yesterday: String,
+    locale: Locale,
+): List<Pair<String, List<VideoItem>>> =
+    buildDateSections(items, today, yesterday, locale) { it.dateAddedSec }
 
 /**
  * Таймкод ролика: `м:сс` или `ч:мм:сс`.
